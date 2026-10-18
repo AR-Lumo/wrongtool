@@ -46,17 +46,16 @@ async def handle_client(process):
     # --- MAIN MENU ---
     s_print("\033[H\033[J")
     s_print("=" * 60)
-    s_print("\033[1;36m🐱 LATE FOR WORK: TOTAL METRIC EDITION v6.0 🐱\033[0m")
+    s_print("\033[1;36m🐱 LATE FOR WORK: TIME DEADLINE EDITION v7.0 🐱\033[0m")
     s_print("=" * 60)
-    s_print(" [1] Start Campaign")
-    s_print(" [2] How to Play")
+    s_print(" Start Campaign")
+    s_print(" How to Play")
     
     menu_choice = await s_input("\nSelect an option: ")
     if menu_choice == '2':
         s_print("\n\033[1;33m--- INSTRUCTIONS ---\033[0m")
         s_print("- Clear the street obstacle, then defeat the Boss at the elevator.")
-        s_print("- Keep Stress below 100 or you lose!")
-        s_print("- Cards like Espresso give you an extra action point on the following turn.")
+        s_print("- Keep Stress below 100 and reach the office before 09:00 AM or you lose!")
         await s_input("\nPress [Enter] to continue...")
 
     s_print("\033[H\033[J")
@@ -65,8 +64,8 @@ async def handle_client(process):
     
     # --- PASSIVE ITEM SELECTOR ---
     s_print("\033[1;36m🎒 CHOOSE YOUR CAT GEAR:\033[0m")
-    s_print(" [1] Premium Catnip (Draw 4 cards per turn instead of 3)")
-    s_print(" [2] Cardboard Box (Increases Max Stress limit to 120)")
+    s_print(" Premium Catnip (Draw 4 cards per turn instead of 3)")
+    s_print(" Cardboard Box (Increases Max Stress limit to 120)")
     item_choice = await s_input("\nPick an item: ")
     
     hand_size = 3
@@ -81,8 +80,9 @@ async def handle_client(process):
         
     await s_input("Press [Enter] to begin...")
 
-    # Action tracking metric engine
+    # Action and clock tracking metrics engine
     total_cards_played = 0
+    current_time_minutes = 500  # 8:20 AM starting boundary
 
     # Define obstacles cleanly
     street_pool = [
@@ -99,14 +99,13 @@ async def handle_client(process):
 
     boss_defeated = False
 
-    # Main campaign routing array loop
+    # Main campaign array loop
     for current_stage_index, current_obstacle in enumerate(stages_data):
-        if stress >= max_stress:
+        if stress >= max_stress or current_time_minutes >= 540:
             break
             
         current_display_num = current_stage_index + 1
         
-        # Enforce step pausing structure across stages
         s_print("\033[H\033[J")
         s_print("=" * 60)
         s_print(f"\033[1;33m🎬 WELCOME TO STAGE {current_display_num}\033[0m")
@@ -123,10 +122,13 @@ async def handle_client(process):
         discard = []
         turn = 1
 
-        while current_obstacle.delay > 0 and stress < max_stress:
+        while current_obstacle.delay > 0 and stress < max_stress and current_time_minutes < 540:
             s_print(f"\n\033[1;36m=== TURN {turn} ===\033[0m")
             
-            # Draw Dynamic Buff Layout Status Boxes
+            # Format time outputs cleanly
+            h, m = divmod(current_time_minutes, 60)
+            s_print(f"⏰ TIME RUNNING: \033[1;33m{h:02d}:{m:02d} AM\033[0m (Deadline: 09:00 AM)")
+            
             status_buffer = []
             if caffeine_turns > 0:
                 status_buffer.append("\033[1;33m[☕ CAFFEINATED]\033[0m")
@@ -163,7 +165,7 @@ async def handle_client(process):
                 s_print("Your Hand:")
                 for i, card in enumerate(hand):
                     s_print(f" [\033[1;36m{i + 1}\033[0m] \033[1;32m{card.name}\033[0m (Cost: \033[1;33m{card.energy_cost}⚡\033[0m) -> {card.description}")
-                s_print(" [0] End Turn")
+                s_print(" End Turn")
 
                 choice = await s_input("\nChoose a card to play: ")
                 if choice == '0' or not choice:
@@ -188,8 +190,6 @@ async def handle_client(process):
                 energy -= card.energy_cost
                 stress += card.stress_cost
                 current_obstacle.delay -= card.delay_damage
-                
-                # Dynamic performance increment tracker
                 total_cards_played += 1
                 
                 if card.status_effect == "CAFFEINE":
@@ -202,7 +202,7 @@ async def handle_client(process):
                 if current_obstacle.delay <= 0 or stress >= max_stress:
                     break
 
-            if current_obstacle.delay > 0 and stress < max_stress:
+            if current_obstacle.delay > 0 and stress < max_stress and current_time_minutes < 540:
                 incoming_damage = current_obstacle.stress_damage
                 if stress >= (max_stress * 0.6):
                     incoming_damage = int(incoming_damage * 1.5)
@@ -213,6 +213,7 @@ async def handle_client(process):
                 discard.extend(hand)
                 hand.clear()
                 turn += 1
+                current_time_minutes += 10 # 🟢 Advance clock by 10 mins each round
         
         if current_obstacle.delay <= 0:
             if not current_obstacle.is_boss:
@@ -225,32 +226,23 @@ async def handle_client(process):
 
     # --- END GAME CHECK WITH TRACKED METRICS ---
     s_print("\n" + "=" * 60)
-    if stress < max_stress and boss_defeated:
+    if stress < max_stress and current_time_minutes < 540 and boss_defeated:
         s_print("🎉 \033[1;32mCAMPAIGN VICTORY! You slipped into the elevator unnoticed and made it to your desk!\033[0m")
         s_print(f"📈 Performance Metric: {total_cards_played} total action cards played.")
+    elif current_time_minutes >= 540:
+        s_print("⏰ \033[1;31m🙀 TIME'S UP! The clock struck 09:00 AM! You are locked out of the building and FIRED!\033[0m")
     else:
         s_print("🙀 \033[1;31mGAME OVER! You broke down out of stress and hid in a supply closet!\033[0m")
-        s_print(f"📊 Progress Metric: You managed to play {total_cards_played} action cards before burn out.")
     s_print("=" * 60)
     
     process.exit(0)
 
-# --- SSH SERVER ROUTING CONTROLS ---
 class MySSHServer(asyncssh.SSHServer):
-    def password_auth_supported(self): 
-        return True
-    def validate_password(self, username, password): 
-        return True
-
+def password_auth_supported(self): return True
+def validate_password(self, username, password): return True
 async def main():
-    server_key = asyncssh.generate_private_key('ssh-rsa')
-server = await asyncssh.create_server(
-MySSHServer,
-host='',
-port=8022,
-server_host_keys=[server_key],
-process_factory=handle_client
-)
+server_key = asyncssh.generate_private_key('ssh-rsa')
+server = await asyncssh.create_server(MySSHServer, host='', port=8022, server_host_keys=[server_key], process_factory=handle_client)
 print("🚀 SSH Cat Campaign Server running on port 8022...")
 await server.wait_closed()
 if name == "main":
